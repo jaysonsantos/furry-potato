@@ -1,18 +1,17 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Client {
-    #[serde(rename = "client")]
-    pub id: u16,
-}
+pub type Client = u16;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientPosition {
-    #[serde(flatten)]
-    client: Client,
-    total: Decimal,
-    available: Decimal,
-    held: Decimal,
-    locked: Decimal,
+    pub client: Client,
+
+    #[serde(with = "rust_decimal::serde::str")]
+    pub total: Decimal,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub available: Decimal,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub held: Decimal,
+    pub locked: bool,
 }

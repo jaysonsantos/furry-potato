@@ -2,11 +2,7 @@ use std::sync::Once;
 
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::{pin_mut, StreamExt};
-use tokio::{
-    fs::File,
-    io,
-    io::{AsyncRead, AsyncWrite},
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::instrument;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt, prelude::*, Registry};
@@ -25,13 +21,17 @@ pub fn setup_instrumentation() {
     })
 }
 
-pub struct Cli {}
+pub struct Cli {
+    account_service: Box<dyn account_service::Service>,
+}
 
 impl Cli {
     #[instrument(err)]
     pub fn new() -> Result<Self> {
         setup_instrumentation();
-        Ok(Self {})
+        Ok(Self {
+            account_service: Box::new(account_service::ServiceImpl::new()),
+        })
     }
 
     #[instrument(skip_all, err)]
@@ -71,7 +71,7 @@ impl Cli {
 
     #[instrument(
     fields(
-    client = transaction.client.id,
+    client = transaction.client,
     transaction_type = % transaction.transaction_type,
     id = transaction.transaction_id,
     amount = % transaction.amount
@@ -80,17 +80,36 @@ impl Cli {
     err,
     )]
     async fn process_transaction(&self, transaction: &Transaction) -> Result<()> {
-        let _ = transaction;
+        self.account_service
+            .add_transaction(transaction)
+            .await
+            .wrap_err("failed process transaction")?;
         Ok(())
     }
 
     #[instrument(skip_all, err)]
-    async fn print_clients_positions<O>(&self, mut writer: O) -> Result<()>
+    async fn print_clients_positions<O>(&self, writer: O) -> Result<()>
     where
         O: AsyncWrite + Unpin + Send + Sync,
     {
-        let mut output_file = File::open("../fixtures/output-001.csv").await.unwrap();
-        io::copy(&mut output_file, &mut writer).await.unwrap();
+        let mut writer = csv_async::AsyncWriterBuilder::new()
+            .delimiter(b',')
+            .has_headers(true)
+            .create_serializer(writer);
+
+        // In case of a big amount clients, this would actually have to be a stream
+        let positions = self
+            .account_service
+            .get_clients_positions()
+            .await
+            .wrap_err("failed to get clients positions")?;
+
+        for position in positions {
+            writer
+                .serialize(&position)
+                .await
+                .wrap_err("failed to serialize client position")?;
+        }
         Ok(())
     }
 }
