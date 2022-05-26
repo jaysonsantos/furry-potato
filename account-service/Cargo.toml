@@ -1,0 +1,12 @@
+[package]
+name = "account-service"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1.53"
+rust_decimal = "1.23.1"
+thiserror = "1.0.31"
+transaction = { version = "0.1.0", path = "../transaction" }

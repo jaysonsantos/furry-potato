@@ -1,2 +1,2 @@
 [workspace]
-members = ["transaction"]
+members = ["account-service", "transaction"]
