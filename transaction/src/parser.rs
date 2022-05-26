@@ -10,7 +10,7 @@ use tokio_stream::Stream;
 
 use crate::{client::Client, errors::Result};
 
-#[derive(Debug, Deserialize, Serialize, Display, PartialEq, Default)]
+#[derive(Debug, Deserialize, Serialize, Display, PartialEq, Default, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TransactionType {
     #[default]
@@ -29,7 +29,7 @@ pub enum TransactionState {
     Locked,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: TransactionType,

@@ -3,7 +3,7 @@ use std::sync::Once;
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::{pin_mut, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::instrument;
+use tracing::{info, instrument, Level};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use transaction::Transaction;
@@ -13,7 +13,7 @@ static INSTRUMENTATION: Once = Once::new();
 pub fn setup_instrumentation() {
     INSTRUMENTATION.call_once(|| {
         Registry::default()
-            .with(fmt::layer())
+            .with(fmt::layer().map_writer(|w| w.with_max_level(Level::INFO)))
             .with(ErrorLayer::default())
             .try_init()
             .expect("failed to initialize tracing");
@@ -30,7 +30,7 @@ impl Cli {
     pub fn new() -> Result<Self> {
         setup_instrumentation();
         Ok(Self {
-            account_service: Box::new(account_service::ServiceImpl::new()?),
+            account_service: Box::new(account_service::ServiceImpl::with_sled()?),
         })
     }
 
@@ -66,6 +66,7 @@ impl Cli {
                 .wrap_err_with(|| format!("failed to process transaction on line #{}", line))?;
         }
 
+        info!("Processed transactions");
         Ok(())
     }
 

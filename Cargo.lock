@@ -7,6 +7,7 @@ name = "account-service"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "futures",
  "rust_decimal",
  "storage",
  "thiserror",
@@ -726,9 +727,13 @@ dependencies = [
 name = "storage"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "async-trait",
+ "futures",
+ "serde_json",
  "sled",
  "thiserror",
+ "tokio",
  "transaction",
 ]
 

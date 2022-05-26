@@ -1,11 +1,12 @@
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::{Debug, Formatter};
 
 use async_trait::async_trait;
-use rust_decimal::{prelude::FromPrimitive, Decimal};
-use storage::{sled::Sled, Storage};
+use futures::{pin_mut, StreamExt};
+use rust_decimal::Decimal;
+use storage::sled::Sled;
 use transaction::{
     client::{Client, ClientPosition},
-    Transaction,
+    Transaction, TransactionType,
 };
 
 use crate::errors::Result;
@@ -16,9 +17,8 @@ pub mod errors;
 /// Storage is just an abstraction of what would be a database.
 pub trait Service: Debug + Sync {
     async fn add_transaction(&self, transaction: &Transaction) -> Result<()>;
-    async fn get_transaction(&self, client: &Client, transaction_id: u32) -> Result<Transaction>;
+    async fn get_transaction(&self, client: Client, transaction_id: u32) -> Result<Transaction>;
     async fn get_clients_positions(&self) -> Result<Vec<ClientPosition>>;
-    async fn update_client_position(&self, client: &Client, operation: Operation) -> Result<()>;
 }
 
 /// Operation is used to mimic atomic operations on a database for example.
@@ -30,55 +30,80 @@ pub struct Operation {
 }
 
 pub struct ServiceImpl {
-    storage: Box<dyn Storage>,
+    storage: Sled,
 }
 
 impl ServiceImpl {
-    pub fn new() -> Result<Self> {
-        Ok(Self {
-            storage: Box::new(Sled::new()?),
-        })
+    pub fn with_sled() -> Result<Self> {
+        let storage = Sled::new()?;
+        Ok(Self { storage })
+    }
+
+    async fn update_client_position(&self, transaction: &Transaction) -> Result<()> {
+        let amount = transaction.amount;
+        let mut client_position = ClientPosition {
+            client: transaction.client,
+            ..Default::default()
+        };
+        match transaction.transaction_type {
+            TransactionType::Deposit => {
+                client_position.available = amount;
+            }
+            TransactionType::Withdrawal => {
+                client_position.available = -amount;
+            }
+            TransactionType::Dispute => {
+                client_position.held = amount;
+            }
+            TransactionType::Resolve => {
+                client_position.held = -amount;
+            }
+            TransactionType::Chargeback => {
+                client_position.locked = true;
+            }
+        };
+        client_position.available -= client_position.held;
+        client_position.total += client_position.held + client_position.available;
+        self.storage.create_or_update(&client_position)?;
+        Ok(())
     }
 }
 
 impl Debug for ServiceImpl {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("ServiceImpl<")?;
-        f.write_str(self.storage.name())?;
+        write!(f, "{}", self.storage)?;
         f.write_str(">")
     }
 }
 
 #[async_trait]
 impl Service for ServiceImpl {
-    async fn add_transaction(&self, _transaction: &Transaction) -> Result<()> {
+    async fn add_transaction(&self, transaction: &Transaction) -> Result<()> {
+        self.storage.create_or_update(transaction)?;
+        self.update_client_position(transaction).await?;
         Ok(())
     }
 
-    async fn get_transaction(&self, _client: &Client, _transaction_id: u32) -> Result<Transaction> {
-        Ok(Transaction::default())
+    async fn get_transaction(&self, client: Client, transaction_id: u32) -> Result<Transaction> {
+        let entity = self.storage.get(&Transaction {
+            client,
+            transaction_id,
+            ..Default::default()
+        })?;
+        Ok(entity)
     }
 
     async fn get_clients_positions(&self) -> Result<Vec<ClientPosition>> {
-        Ok(vec![
-            ClientPosition {
-                client: 1,
-                total: Decimal::from_f64(1.5).expect("failed to get decimal"),
-                available: Decimal::from_f64(0.0).expect("failed to get decimal"),
-                held: Decimal::from_f64(1.5).expect("failed to get decimal"),
-                locked: false,
-            },
-            ClientPosition {
-                client: 2,
-                total: Decimal::from_f64(2.0).expect("failed to get decimal"),
-                available: Decimal::from_f64(0.0).expect("failed to get decimal"),
-                held: Decimal::from_f64(2.0).expect("failed to get decimal"),
-                locked: false,
-            },
-        ])
-    }
-
-    async fn update_client_position(&self, _client: &Client, _operation: Operation) -> Result<()> {
-        Ok(())
+        let mut output = vec![];
+        let list = self
+            .storage
+            .list::<ClientPosition>("client-position-")
+            .await;
+        pin_mut!(list);
+        while let Some(item) = list.next().await {
+            output.push(item?);
+        }
+        Ok(output)
     }
 }

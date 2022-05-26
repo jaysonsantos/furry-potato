@@ -1,12 +1,24 @@
-use async_trait::async_trait;
+use std::result;
 
-pub use crate::errors::Error;
+use crate::errors::Data;
+pub use crate::errors::{Error, Result};
 
+pub mod entities;
 pub mod errors;
 pub mod sled;
 
-#[async_trait]
-/// Storage is used to abstract away databases quirks.
-pub trait Storage: Sync {
-    fn name(&self) -> &str;
+pub trait ToStorage {
+    fn to_bytes(&self) -> Vec<u8>;
+    fn get_updated(&self, new: &Self) -> Self;
+}
+
+pub trait FromStorage {
+    fn from_bytes(input: &[u8]) -> result::Result<Self, Data>
+    where
+        Self: Sized;
+}
+
+pub trait ToFromStorage: ToStorage + FromStorage + Send + Sync {
+    fn partition(&self) -> usize;
+    fn primary_key(&self) -> String;
 }
