@@ -70,14 +70,14 @@ impl Cli {
     }
 
     #[instrument(
-    fields(
-    client = transaction.client,
-    transaction_type = % transaction.transaction_type,
-    id = transaction.transaction_id,
-    amount = % transaction.amount
-    ),
-    skip_all,
-    err,
+        fields(
+            client = transaction.client,
+            transaction_type = % transaction.transaction_type,
+            id = transaction.transaction_id,
+            amount = % transaction.amount
+        ),
+        skip_all,
+        err,
     )]
     async fn process_transaction(&self, transaction: &Transaction) -> Result<()> {
         self.account_service
