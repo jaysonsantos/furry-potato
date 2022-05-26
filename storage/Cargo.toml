@@ -1,5 +1,5 @@
 [package]
-name = "account-service"
+name = "storage"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.53"
-rust_decimal = "1.23.1"
-storage = { version = "0.1.0", path = "../storage" }
+sled = "0.34.7"
 thiserror = "1.0.31"
 transaction = { version = "0.1.0", path = "../transaction" }

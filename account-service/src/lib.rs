@@ -1,7 +1,8 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter, Write};
 
 use async_trait::async_trait;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
+use storage::{sled::Sled, Storage};
 use transaction::{
     client::{Client, ClientPosition},
     Transaction,
@@ -13,7 +14,7 @@ pub mod errors;
 
 #[async_trait]
 /// Storage is just an abstraction of what would be a database.
-pub trait Service: Debug {
+pub trait Service: Debug + Sync {
     async fn add_transaction(&self, transaction: &Transaction) -> Result<()>;
     async fn get_transaction(&self, client: &Client, transaction_id: u32) -> Result<Transaction>;
     async fn get_clients_positions(&self) -> Result<Vec<ClientPosition>>;
@@ -28,12 +29,23 @@ pub struct Operation {
     pub locked: Decimal,
 }
 
-#[derive(Debug, Default)]
-pub struct ServiceImpl {}
+pub struct ServiceImpl {
+    storage: Box<dyn Storage>,
+}
 
 impl ServiceImpl {
-    pub fn new() -> Self {
-        ServiceImpl::default()
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            storage: Box::new(Sled::new()?),
+        })
+    }
+}
+
+impl Debug for ServiceImpl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ServiceImpl<")?;
+        f.write_str(self.storage.name())?;
+        f.write_str(">")
     }
 }
 

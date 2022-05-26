@@ -30,7 +30,7 @@ impl Cli {
     pub fn new() -> Result<Self> {
         setup_instrumentation();
         Ok(Self {
-            account_service: Box::new(account_service::ServiceImpl::new()),
+            account_service: Box::new(account_service::ServiceImpl::new()?),
         })
     }
 
