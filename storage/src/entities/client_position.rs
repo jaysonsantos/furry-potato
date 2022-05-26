@@ -5,5 +5,10 @@ use crate::implement_storage;
 implement_storage!(
     ClientPosition,
     |this: &ClientPosition| format!("client-position-{}", this.client),
-    |_, new: &ClientPosition| { new.clone() }
+    |old: &ClientPosition, new: &ClientPosition| {
+        let mut output = old.clone();
+        output.total += new.total;
+        output.available += new.available;
+        output
+    }
 );

@@ -27,24 +27,26 @@ async fn client_position() {
     let transaction = get_test_transaction();
     let total = 30;
     let available = 30;
-    service
-        .add_transaction(&transaction)
-        .await
-        .expect("failed to save transaction");
-    let positions = service
-        .get_clients_positions()
-        .await
-        .expect("failed to get clients positions");
-    assert_eq!(positions.len(), 1);
-    let position = &positions[0];
-    let expected = ClientPosition {
-        client: 10,
-        total: total.into(),
-        available: available.into(),
-        held: 0.into(),
-        locked: false,
-    };
-    assert_eq!(position, &expected);
+    for i in 1..100 {
+        service
+            .add_transaction(&transaction)
+            .await
+            .expect("failed to save transaction");
+        let positions = service
+            .get_clients_positions()
+            .await
+            .expect("failed to get clients positions");
+        assert_eq!(positions.len(), 1);
+        let position = &positions[0];
+        let expected = ClientPosition {
+            client: 10,
+            total: (total * i).into(),
+            available: (available * i).into(),
+            held: 0.into(),
+            locked: false,
+        };
+        assert_eq!(position, &expected);
+    }
 }
 
 fn get_test_transaction() -> Transaction {
