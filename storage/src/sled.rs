@@ -5,7 +5,7 @@ use std::{
 
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
-use sled::{Db, Mode, Tree};
+use sled::{Mode, Tree};
 use sync::mpsc;
 use tokio::{sync, task};
 
@@ -18,7 +18,6 @@ const DEFAULT_NUMBER_OF_SHARDS: usize = 10;
 
 pub struct Sled {
     number_of_shards: usize,
-    db: Db,
     shards: Vec<Tree>,
 }
 
@@ -45,7 +44,6 @@ impl Sled {
         })?;
         Ok(Self {
             number_of_shards: DEFAULT_NUMBER_OF_SHARDS,
-            db,
             shards,
         })
     }
@@ -111,20 +109,20 @@ impl Sled {
         &self,
         prefix: &'static str,
     ) -> impl Stream<Item = result::Result<T, Data>> + 'a {
-        let db = self.db.clone();
+        let shards: Vec<Tree> = self.shards.to_vec();
         let (tx, mut rx) = mpsc::channel(10);
         let handler = task::spawn_blocking(move || {
             let tx = tx.clone();
-            let db = db.clone();
-
-            let iter = db.scan_prefix(prefix).values();
-            for e in iter {
-                let rv = e
-                    .map_err(|e| {
-                        Data::Sled(format!("failed to list keys from prefix {}", prefix), e)
-                    })
-                    .and_then(|e| T::from_bytes(e.as_ref()));
-                tx.blocking_send(rv).expect("failed to send results");
+            for shard in shards {
+                let iter = shard.scan_prefix(prefix).values();
+                for e in iter {
+                    let rv = e
+                        .map_err(|e| {
+                            Data::Sled(format!("failed to list keys from prefix {}", prefix), e)
+                        })
+                        .and_then(|e| T::from_bytes(e.as_ref()));
+                    tx.blocking_send(rv).expect("failed to send results");
+                }
             }
         });
         stream! {

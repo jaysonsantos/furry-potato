@@ -1,4 +1,4 @@
-use std::sync::Once;
+use std::{io::stderr, sync::Once};
 
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::{pin_mut, StreamExt};
@@ -12,8 +12,9 @@ static INSTRUMENTATION: Once = Once::new();
 
 pub fn setup_instrumentation() {
     INSTRUMENTATION.call_once(|| {
+        let writer = stderr.with_max_level(Level::INFO);
         Registry::default()
-            .with(fmt::layer().map_writer(|w| w.with_max_level(Level::INFO)))
+            .with(fmt::layer().map_writer(|_| writer))
             .with(ErrorLayer::default())
             .try_init()
             .expect("failed to initialize tracing");

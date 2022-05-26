@@ -11,4 +11,5 @@ futures = "0.3.21"
 rust_decimal = "1.23.1"
 storage = { version = "0.1.0", path = "../storage" }
 thiserror = "1.0.31"
+tokio = "1.18.2"
 transaction = { version = "0.1.0", path = "../transaction" }
