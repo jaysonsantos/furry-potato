@@ -1,3 +1,5 @@
+use std::sync::Once;
+
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::{pin_mut, StreamExt};
 use tokio::{
@@ -10,16 +12,25 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use transaction::Transaction;
 
+static INSTRUMENTATION: Once = Once::new();
+
+pub fn setup_instrumentation() {
+    INSTRUMENTATION.call_once(|| {
+        Registry::default()
+            .with(fmt::layer())
+            .with(ErrorLayer::default())
+            .try_init()
+            .expect("failed to initialize tracing");
+        color_eyre::install().expect("failed to setup color_eyre");
+    })
+}
+
 pub struct Cli {}
 
 impl Cli {
     #[instrument(err)]
     pub fn new() -> Result<Self> {
-        Registry::default()
-            .with(fmt::layer())
-            .with(ErrorLayer::default())
-            .init();
-        color_eyre::install()?;
+        setup_instrumentation();
         Ok(Self {})
     }
 

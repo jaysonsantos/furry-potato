@@ -9,6 +9,8 @@ use tokio::{fs::File, io::stdout};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    krak_it::setup_instrumentation();
+
     let input_file = if let Some(input_file) = args().nth(1) {
         input_file
     } else {
