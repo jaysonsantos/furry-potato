@@ -54,11 +54,19 @@ impl Sled {
         unsafe { self.shards.get_unchecked(shard_number) }
     }
 
-    pub fn create_or_update<T: ToFromStorage>(&self, entity: &T) -> Result<()> {
-        Ok(self.create_or_update_internal(entity)?)
+    pub fn create_or_update<T, F>(&self, entity: &T, update_fn: F) -> Result<()>
+    where
+        T: ToFromStorage,
+        F: FnOnce(&T, &T) -> result::Result<T, Data>,
+    {
+        Ok(self.create_or_update_internal(entity, update_fn)?)
     }
 
-    fn create_or_update_internal<T: ToFromStorage>(&self, entity: &T) -> result::Result<(), Data> {
+    fn create_or_update_internal<T, F>(&self, entity: &T, update_fn: F) -> result::Result<(), Data>
+    where
+        T: ToFromStorage,
+        F: FnOnce(&T, &T) -> result::Result<T, Data>,
+    {
         let shard = self.get_shard(entity.partition());
         let primary_key = &entity.primary_key();
         let existing = shard
@@ -74,7 +82,7 @@ impl Sled {
             return Ok(());
         };
         let decoded_existing = T::from_bytes(existing.as_ref())?;
-        let new = entity.get_updated(&decoded_existing);
+        let new = update_fn(entity, &decoded_existing)?;
         shard
             .compare_and_swap(primary_key, Some(existing), Some(new.to_bytes()))
             .map_err(|e| Data::Sled("sled configuration error".into(), e))??;

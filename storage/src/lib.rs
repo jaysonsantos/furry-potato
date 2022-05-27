@@ -9,7 +9,6 @@ pub mod sled;
 
 pub trait ToStorage {
     fn to_bytes(&self) -> Vec<u8>;
-    fn get_updated(&self, new: &Self) -> Self;
 }
 
 pub trait FromStorage {

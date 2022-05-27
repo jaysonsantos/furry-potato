@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Formatter};
+use std::{
+    fmt::{Debug, Formatter},
+    result,
+};
 
 use async_trait::async_trait;
 use futures::{pin_mut, StreamExt};
@@ -69,8 +72,31 @@ impl ServiceImpl {
         };
         client_position.available -= client_position.held;
         client_position.total += client_position.held + client_position.available;
-        self.storage.create_or_update(&client_position)?;
+        self.storage
+            .create_or_update(&client_position, Self::merge_client_position)?;
         Ok(())
+    }
+
+    fn merge_transaction(
+        old: &Transaction,
+        new: &Transaction,
+    ) -> result::Result<Transaction, storage::errors::Data> {
+        let old = old.clone();
+        Ok(Transaction {
+            transaction_type: new.transaction_type.clone(),
+            ..old
+        })
+    }
+
+    fn merge_client_position(
+        old: &ClientPosition,
+        new: &ClientPosition,
+    ) -> result::Result<ClientPosition, storage::errors::Data> {
+        let mut output = old.clone();
+        output.total += new.total;
+        output.available += new.available;
+        output.held += new.held;
+        Ok(output)
     }
 }
 
@@ -85,7 +111,8 @@ impl Debug for ServiceImpl {
 #[async_trait]
 impl Service for ServiceImpl {
     async fn add_transaction(&self, transaction: &Transaction) -> Result<()> {
-        self.storage.create_or_update(transaction)?;
+        self.storage
+            .create_or_update(transaction, Self::merge_transaction)?;
         self.update_client_position(transaction).await?;
         Ok(())
     }
