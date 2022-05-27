@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use futures::{pin_mut, StreamExt};
 use rust_decimal::Decimal;
 use storage::sled::Sled;
+use tracing::instrument;
 use transaction::{
     client::{Client, ClientPosition},
     Transaction, TransactionType,
@@ -81,11 +82,29 @@ impl ServiceImpl {
         old: &Transaction,
         new: &Transaction,
     ) -> result::Result<Transaction, storage::errors::Data> {
+        if !Self::can_transition(old, new) {
+            return Err(storage::errors::Data::InvalidTransition(
+                old.transaction_type.to_string(),
+                new.transaction_type.to_string(),
+            ));
+        }
         let old = old.clone();
         Ok(Transaction {
             transaction_type: new.transaction_type.clone(),
             ..old
         })
+    }
+
+    #[instrument(fields(old = %old.transaction_type, new = %new.transaction_type))]
+    fn can_transition(old: &Transaction, new: &Transaction) -> bool {
+        match old.transaction_type {
+            TransactionType::Deposit => new.transaction_type == TransactionType::Dispute,
+            TransactionType::Withdrawal => false,
+            TransactionType::Dispute => [TransactionType::Resolve, TransactionType::Chargeback]
+                .contains(&new.transaction_type),
+            TransactionType::Resolve => false,
+            TransactionType::Chargeback => false,
+        }
     }
 
     fn merge_client_position(
@@ -96,6 +115,7 @@ impl ServiceImpl {
         output.total += new.total;
         output.available += new.available;
         output.held += new.held;
+        output.locked = new.locked;
         Ok(output)
     }
 }
@@ -110,6 +130,7 @@ impl Debug for ServiceImpl {
 
 #[async_trait]
 impl Service for ServiceImpl {
+    #[instrument]
     async fn add_transaction(&self, transaction: &Transaction) -> Result<()> {
         self.storage
             .create_or_update(transaction, Self::merge_transaction)?;
@@ -117,6 +138,7 @@ impl Service for ServiceImpl {
         Ok(())
     }
 
+    #[instrument]
     async fn get_transaction(&self, client: Client, transaction_id: u32) -> Result<Transaction> {
         let entity = self.storage.get(&Transaction {
             client,
@@ -126,6 +148,7 @@ impl Service for ServiceImpl {
         Ok(entity)
     }
 
+    #[instrument]
     async fn get_clients_positions(&self) -> Result<Vec<ClientPosition>> {
         let mut output = vec![];
         let list = self

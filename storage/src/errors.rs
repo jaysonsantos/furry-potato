@@ -31,4 +31,8 @@ pub enum Data {
     Serialization(#[from] serde_json::Error),
     #[error("key not found {0}")]
     KeyNotFound(String),
+    #[error("duplicated transaction")]
+    DuplicatedTransaction,
+    #[error("transaction cannot transition from {0} to {1}")]
+    InvalidTransition(String, String),
 }

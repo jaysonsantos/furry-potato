@@ -82,7 +82,7 @@ impl Sled {
             return Ok(());
         };
         let decoded_existing = T::from_bytes(existing.as_ref())?;
-        let new = update_fn(entity, &decoded_existing)?;
+        let new = update_fn(&decoded_existing, entity)?;
         shard
             .compare_and_swap(primary_key, Some(existing), Some(new.to_bytes()))
             .map_err(|e| Data::Sled("sled configuration error".into(), e))??;

@@ -1,6 +1,13 @@
+use std::sync::Once;
+
 use account_service::{Service, ServiceImpl};
+use color_eyre::eyre::WrapErr;
 use tokio::test;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use transaction::{client::ClientPosition, Transaction, TransactionType};
+
+static TRACING: Once = Once::new();
 
 fn get_test_service() -> ServiceImpl {
     ServiceImpl::with_sled().expect("failed to create service")
@@ -29,15 +36,20 @@ async fn add_transaction() {
         .expect("failed to get saved transaction");
     assert_eq!(transaction, saved_transaction);
 }
+
 #[test]
 async fn client_position_incremental_deposits() {
+    setup_tracing();
     let service = get_test_service();
     let transaction = get_test_transaction();
     let total = 30;
     let available = 30;
     for i in 1..100 {
         service
-            .add_transaction(&transaction)
+            .add_transaction(&Transaction {
+                transaction_id: i,
+                ..transaction.clone()
+            })
             .await
             .expect("failed to save transaction");
         let positions = service
@@ -58,7 +70,8 @@ async fn client_position_incremental_deposits() {
 }
 
 #[test]
-async fn client_position_dispute_and_solve() {
+async fn client_position_dispute_and_solve() -> color_eyre::Result<()> {
+    setup_tracing();
     let service = get_test_service();
     let transaction = get_test_transaction();
 
@@ -95,23 +108,31 @@ async fn client_position_dispute_and_solve() {
         },
     ];
     for (transaction, expected) in transactions.iter().zip(expectations_.iter()) {
-        service
-            .add_transaction(transaction)
-            .await
-            .expect("failed to save transaction");
-        let positions = service
-            .get_clients_positions()
-            .await
-            .expect("failed to get clients positions");
+        service.add_transaction(transaction).await?;
+        let positions = service.get_clients_positions().await?;
         assert_eq!(positions.len(), 1);
         let position = &positions[0];
 
         assert_eq!(position, expected);
     }
+    Ok(())
+}
+
+fn setup_tracing() {
+    TRACING.call_once(|| {
+        Registry::default()
+            .with(ErrorLayer::default())
+            .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+            .with(fmt::layer())
+            .try_init()
+            .expect("failed to setup tracing");
+        color_eyre::install().expect("failed to setup color_eyre")
+    });
 }
 
 #[test]
 async fn client_position_lock_account() {
+    setup_tracing();
     let service = get_test_service();
     let transaction = get_test_transaction();
 
@@ -149,7 +170,7 @@ async fn client_position_lock_account() {
             ..expected.clone()
         },
     ];
-    for (transaction, expected) in transactions.iter().zip(expectations_.iter()) {
+    for (i, (transaction, expected)) in transactions.iter().zip(expectations_.iter()).enumerate() {
         service
             .add_transaction(transaction)
             .await
@@ -157,10 +178,16 @@ async fn client_position_lock_account() {
         let positions = service
             .get_clients_positions()
             .await
-            .expect("failed to get clients positions");
+            .wrap_err("failed to get clients positions")
+            .unwrap();
         assert_eq!(positions.len(), 1);
         let position = &positions[0];
 
-        assert_eq!(position, expected);
+        assert_eq!(
+            position,
+            expected,
+            "transaction on position {} was not expected",
+            i + 1
+        );
     }
 }
