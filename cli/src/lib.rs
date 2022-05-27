@@ -62,7 +62,7 @@ impl Cli {
             let line = i + 2;
             let transaction = transaction
                 .wrap_err_with(|| format!("failed to read transaction on line #{}", line))?;
-            self.process_transaction(&transaction)
+            self.process_transaction(transaction)
                 .await
                 .wrap_err_with(|| format!("failed to process transaction on line #{}", line))?;
         }
@@ -76,12 +76,12 @@ impl Cli {
             client = transaction.client,
             transaction_type = % transaction.transaction_type,
             id = transaction.transaction_id,
-            amount = % transaction.amount
+            amount = ?transaction.amount
         ),
         skip_all,
         err,
     )]
-    async fn process_transaction(&self, transaction: &Transaction) -> Result<()> {
+    async fn process_transaction(&self, transaction: Transaction) -> Result<()> {
         self.account_service
             .add_transaction(transaction)
             .await

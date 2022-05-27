@@ -1,12 +1,14 @@
 use async_stream::stream;
-use krak_it::Cli;
+use csv_async::Trim;
+use krak_it::{setup_instrumentation, Cli};
 use tokio::{
-    fs,
     fs::{read_dir, DirEntry, File},
     io::BufWriter,
     test,
 };
 use tokio_stream::{Stream, StreamExt};
+use tracing::{info, info_span};
+use transaction::client::ClientPosition;
 
 async fn list_fixtures_dir() -> impl Stream<Item = DirEntry> {
     let mut files = read_dir("../fixtures")
@@ -22,6 +24,7 @@ async fn list_fixtures_dir() -> impl Stream<Item = DirEntry> {
 
 #[test]
 async fn test_cases() {
+    setup_instrumentation();
     let fixtures: Vec<String> = list_fixtures_dir()
         .await
         .filter_map(|f| {
@@ -44,7 +47,7 @@ async fn test_cases() {
         .collect()
         .await;
 
-    let (input_files, output_files): (Vec<&str>, Vec<&str>) = fixtures
+    let (mut input_files, mut output_files): (Vec<&str>, Vec<&str>) = fixtures
         .iter()
         .map(|f| f.as_str())
         .partition(|path| path.contains("input-"));
@@ -56,24 +59,62 @@ async fn test_cases() {
         "the number of input and output fixtures do not match"
     );
 
-    for (input_filename, expected_output_filename) in input_files.iter().zip(output_files.iter()) {
+    input_files.sort();
+    output_files.sort();
+
+    for (case_number, (input_filename, expected_output_filename)) in
+        input_files.iter().zip(output_files.iter()).enumerate()
+    {
+        let case_number = format!("{:03}", case_number + 1);
+        let _span =
+            info_span!("case", number = %case_number, input_filename, expected_output_filename)
+                .entered();
+
+        info!("Processing case");
         let client = Cli::new().expect("should create client");
         let input_file = File::open(input_filename)
             .await
             .expect("failed to open input fixture");
-        let _expected_output = fs::read_to_string(expected_output_filename)
+        let expected_output = File::open(expected_output_filename)
             .await
             .expect("failed to read output fixture");
+        let mut output_deserializer = csv_async::AsyncReaderBuilder::new()
+            .delimiter(b',')
+            .trim(Trim::All)
+            .create_deserializer(expected_output);
+        let expected_output = output_deserializer
+            .deserialize::<ClientPosition>()
+            .collect::<Result<Vec<_>, _>>()
+            .await
+            .expect("failed to read output into structs");
 
-        let mut output_buffer = BufWriter::new(vec![]);
+        let output = vec![];
+        let mut output_writer = BufWriter::new(output);
         {
             client
-                .process_and_print_transactions(input_file, &mut output_buffer)
+                .process_and_print_transactions(input_file, &mut output_writer)
                 .await
                 .expect("failed to process fixture");
         }
 
-        let _ = String::from_utf8_lossy(output_buffer.buffer());
-        // assert_eq!(expected_output, output);
+        let output = output_writer.into_inner();
+        let mut output_deserializer = csv_async::AsyncReaderBuilder::new()
+            .delimiter(b',')
+            .trim(Trim::All)
+            .create_deserializer(&output[..]);
+        let output = output_deserializer
+            .deserialize::<ClientPosition>()
+            .collect::<Result<Vec<_>, _>>()
+            .await
+            .expect("failed to read output into structs");
+        assert_eq!(expected_output.len(), output.len());
+        for (i, (expected, output)) in expected_output.iter().zip(output.iter()).enumerate() {
+            assert_eq!(
+                expected,
+                output,
+                "client position on line {} does not match",
+                i + 2
+            );
+        }
     }
 }

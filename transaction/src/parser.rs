@@ -36,8 +36,8 @@ pub struct Transaction {
     pub client: Client,
     #[serde(rename = "tx")]
     pub transaction_id: u32,
-    #[serde(with = "rust_decimal::serde::str")]
-    pub amount: Decimal,
+
+    pub amount: Option<Decimal>,
 }
 
 impl Transaction {

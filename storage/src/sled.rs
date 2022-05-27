@@ -54,7 +54,7 @@ impl Sled {
         unsafe { self.shards.get_unchecked(shard_number) }
     }
 
-    pub fn create_or_update<T, F>(&self, entity: &T, update_fn: F) -> Result<()>
+    pub fn create_or_update<T, F>(&self, entity: T, update_fn: F) -> Result<T>
     where
         T: ToFromStorage,
         F: FnOnce(&T, &T) -> result::Result<T, Data>,
@@ -62,7 +62,7 @@ impl Sled {
         Ok(self.create_or_update_internal(entity, update_fn)?)
     }
 
-    fn create_or_update_internal<T, F>(&self, entity: &T, update_fn: F) -> result::Result<(), Data>
+    fn create_or_update_internal<T, F>(&self, entity: T, update_fn: F) -> result::Result<T, Data>
     where
         T: ToFromStorage,
         F: FnOnce(&T, &T) -> result::Result<T, Data>,
@@ -75,18 +75,18 @@ impl Sled {
         let existing = if let Some(existing) = existing {
             existing
         } else {
-            let entity = entity.to_bytes();
+            let encoded_entity = entity.to_bytes();
             shard
-                .insert(primary_key, entity)
+                .insert(primary_key, encoded_entity)
                 .map_err(|e| Data::Sled("failed to insert data".to_string(), e))?;
-            return Ok(());
+            return Ok(entity);
         };
         let decoded_existing = T::from_bytes(existing.as_ref())?;
-        let new = update_fn(&decoded_existing, entity)?;
+        let new = update_fn(&decoded_existing, &entity)?;
         shard
             .compare_and_swap(primary_key, Some(existing), Some(new.to_bytes()))
             .map_err(|e| Data::Sled("sled configuration error".into(), e))??;
-        Ok(())
+        Ok(new)
     }
 
     pub fn get<T: ToFromStorage>(&self, partial: &T) -> Result<T> {

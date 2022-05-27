@@ -6,21 +6,21 @@ use std::{
 use async_trait::async_trait;
 use futures::{pin_mut, StreamExt};
 use rust_decimal::Decimal;
-use storage::sled::Sled;
+use storage::{errors::Data, sled::Sled, Error as StorageError};
 use tracing::instrument;
 use transaction::{
     client::{Client, ClientPosition},
     Transaction, TransactionType,
 };
 
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 
 pub mod errors;
 
 #[async_trait]
 /// Storage is just an abstraction of what would be a database.
 pub trait Service: Debug + Sync {
-    async fn add_transaction(&self, transaction: &Transaction) -> Result<()>;
+    async fn add_transaction(&self, transaction: Transaction) -> Result<Transaction>;
     async fn get_transaction(&self, client: Client, transaction_id: u32) -> Result<Transaction>;
     async fn get_clients_positions(&self) -> Result<Vec<ClientPosition>>;
 }
@@ -47,7 +47,9 @@ impl ServiceImpl {
     /// having to fetch the value first, like:
     /// update client set available = available + 30 where client_id = 1
     async fn update_client_position(&self, transaction: &Transaction) -> Result<()> {
-        let amount = transaction.amount;
+        let amount = transaction
+            .amount
+            .expect("amount in this point should be filled");
         let mut client_position = ClientPosition {
             client: transaction.client,
             ..Default::default()
@@ -74,7 +76,7 @@ impl ServiceImpl {
         client_position.available -= client_position.held;
         client_position.total += client_position.held + client_position.available;
         self.storage
-            .create_or_update(&client_position, Self::merge_client_position)?;
+            .create_or_update(client_position, Self::merge_client_position)?;
         Ok(())
     }
 
@@ -131,11 +133,25 @@ impl Debug for ServiceImpl {
 #[async_trait]
 impl Service for ServiceImpl {
     #[instrument]
-    async fn add_transaction(&self, transaction: &Transaction) -> Result<()> {
-        self.storage
+    async fn add_transaction(&self, transaction: Transaction) -> Result<Transaction> {
+        let client = self.storage.get(&ClientPosition {
+            client: transaction.client,
+            ..Default::default()
+        });
+        match client {
+            Err(StorageError::Data(Data::KeyNotFound(_))) => {}
+            Ok(client) => {
+                if client.locked {
+                    return Err(Error::AccountLocked);
+                }
+            }
+            Err(e) => return Err(e.into()),
+        }
+        let new_transaction = self
+            .storage
             .create_or_update(transaction, Self::merge_transaction)?;
-        self.update_client_position(transaction).await?;
-        Ok(())
+        self.update_client_position(&new_transaction).await?;
+        Ok(new_transaction)
     }
 
     #[instrument]

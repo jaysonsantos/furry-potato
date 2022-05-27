@@ -18,7 +18,7 @@ fn get_test_transaction() -> Transaction {
         transaction_type: Default::default(),
         client: 10,
         transaction_id: 2,
-        amount: 30.into(),
+        amount: Some(30.into()),
     }
 }
 
@@ -26,8 +26,8 @@ fn get_test_transaction() -> Transaction {
 async fn add_transaction() {
     let service = get_test_service();
     let transaction = get_test_transaction();
-    service
-        .add_transaction(&transaction)
+    let transaction = service
+        .add_transaction(transaction)
         .await
         .expect("failed to save transaction");
     let saved_transaction = service
@@ -46,7 +46,7 @@ async fn client_position_incremental_deposits() {
     let available = 30;
     for i in 1..100 {
         service
-            .add_transaction(&Transaction {
+            .add_transaction(Transaction {
                 transaction_id: i,
                 ..transaction.clone()
             })
@@ -94,7 +94,7 @@ async fn client_position_dispute_and_solve() -> color_eyre::Result<()> {
             ..transaction.clone()
         },
     ];
-    let expectations_ = vec![
+    let expectations = vec![
         expected.clone(),
         ClientPosition {
             available: 0.into(),
@@ -107,13 +107,13 @@ async fn client_position_dispute_and_solve() -> color_eyre::Result<()> {
             ..expected.clone()
         },
     ];
-    for (transaction, expected) in transactions.iter().zip(expectations_.iter()) {
+    for (transaction, expected) in transactions.into_iter().zip(expectations.into_iter()) {
         service.add_transaction(transaction).await?;
         let positions = service.get_clients_positions().await?;
         assert_eq!(positions.len(), 1);
         let position = &positions[0];
 
-        assert_eq!(position, expected);
+        assert_eq!(position, &expected);
     }
     Ok(())
 }
@@ -170,7 +170,11 @@ async fn client_position_lock_account() {
             ..expected.clone()
         },
     ];
-    for (i, (transaction, expected)) in transactions.iter().zip(expectations_.iter()).enumerate() {
+    for (i, (transaction, expected)) in transactions
+        .into_iter()
+        .zip(expectations_.into_iter())
+        .enumerate()
+    {
         service
             .add_transaction(transaction)
             .await
@@ -185,7 +189,7 @@ async fn client_position_lock_account() {
 
         assert_eq!(
             position,
-            expected,
+            &expected,
             "transaction on position {} was not expected",
             i + 1
         );
