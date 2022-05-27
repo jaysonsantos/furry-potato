@@ -39,6 +39,9 @@ impl ServiceImpl {
         Ok(Self { storage })
     }
 
+    /// This mimics atomic operations by using database's ability to do addition/subtraction without
+    /// having to fetch the value first, like:
+    /// update client set available = available + 30 where client_id = 1
     async fn update_client_position(&self, transaction: &Transaction) -> Result<()> {
         let amount = transaction.amount;
         let mut client_position = ClientPosition {
@@ -60,6 +63,8 @@ impl ServiceImpl {
             }
             TransactionType::Chargeback => {
                 client_position.locked = true;
+                client_position.held = -amount;
+                client_position.available = -amount;
             }
         };
         client_position.available -= client_position.held;

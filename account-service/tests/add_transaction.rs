@@ -109,3 +109,58 @@ async fn client_position_dispute_and_solve() {
         assert_eq!(position, expected);
     }
 }
+
+#[test]
+async fn client_position_lock_account() {
+    let service = get_test_service();
+    let transaction = get_test_transaction();
+
+    let expected = ClientPosition {
+        client: 10,
+        total: 30.into(),
+        available: 30.into(),
+        held: 0.into(),
+        locked: false,
+    };
+
+    let transactions = vec![
+        transaction.clone(),
+        Transaction {
+            transaction_type: TransactionType::Dispute,
+            ..transaction.clone()
+        },
+        Transaction {
+            transaction_type: TransactionType::Chargeback,
+            ..transaction.clone()
+        },
+    ];
+    let expectations_ = vec![
+        expected.clone(),
+        ClientPosition {
+            available: 0.into(),
+            held: 30.into(),
+            ..expected.clone()
+        },
+        ClientPosition {
+            available: 0.into(),
+            held: 0.into(),
+            total: 0.into(),
+            locked: true,
+            ..expected.clone()
+        },
+    ];
+    for (transaction, expected) in transactions.iter().zip(expectations_.iter()) {
+        service
+            .add_transaction(transaction)
+            .await
+            .expect("failed to save transaction");
+        let positions = service
+            .get_clients_positions()
+            .await
+            .expect("failed to get clients positions");
+        assert_eq!(positions.len(), 1);
+        let position = &positions[0];
+
+        assert_eq!(position, expected);
+    }
+}
