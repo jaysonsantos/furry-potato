@@ -9,6 +9,7 @@ implement_storage!(
         let mut output = old.clone();
         output.total += new.total;
         output.available += new.available;
+        output.held += new.held;
         output
     }
 );
