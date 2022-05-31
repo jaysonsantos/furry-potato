@@ -17,6 +17,8 @@ use crate::errors::{Error, Result};
 
 pub mod errors;
 
+const DECIMAL_PRECISION: u32 = 4;
+
 #[async_trait]
 /// Storage is just an abstraction of what would be a database.
 pub trait Service: Debug + Sync {
@@ -50,6 +52,7 @@ impl ServiceImpl {
         let amount = transaction
             .amount
             .expect("amount in this point should be filled");
+        let amount = amount.round_dp(DECIMAL_PRECISION);
         let mut client_position = ClientPosition {
             client: transaction.client,
             ..Default::default()
@@ -173,7 +176,9 @@ impl Service for ServiceImpl {
             .await;
         pin_mut!(list);
         while let Some(item) = list.next().await {
-            output.push(item?);
+            let item = item?;
+
+            output.push(item);
         }
         Ok(output)
     }
