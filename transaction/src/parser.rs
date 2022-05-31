@@ -10,10 +10,9 @@ use tokio_stream::Stream;
 
 use crate::{client::Client, errors::Result};
 
-#[derive(Debug, Deserialize, Serialize, Display, PartialEq, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Display, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TransactionType {
-    #[default]
     Deposit,
     Withdrawal,
     Dispute,
@@ -21,15 +20,14 @@ pub enum TransactionType {
     Chargeback,
 }
 
-#[derive(Debug, Deserialize, Serialize, Display, Default)]
+#[derive(Debug, Deserialize, Serialize, Display)]
 pub enum TransactionState {
-    #[default]
     Available,
     Held,
     Locked,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: TransactionType,
@@ -38,6 +36,17 @@ pub struct Transaction {
     pub transaction_id: u32,
 
     pub amount: Option<Decimal>,
+}
+
+impl Default for Transaction {
+    fn default() -> Self {
+        Self {
+            transaction_type: TransactionType::Deposit,
+            transaction_id: 10,
+            client: 1,
+            amount: None,
+        }
+    }
 }
 
 impl Transaction {

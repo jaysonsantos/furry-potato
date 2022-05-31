@@ -15,7 +15,7 @@ fn get_test_service() -> ServiceImpl {
 
 fn get_test_transaction() -> Transaction {
     Transaction {
-        transaction_type: Default::default(),
+        transaction_type: TransactionType::Deposit,
         client: 10,
         transaction_id: 2,
         amount: Some(30.into()),
