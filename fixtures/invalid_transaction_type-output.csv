@@ -1,0 +1,1 @@
+unknown variant `invalid`, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
