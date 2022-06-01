@@ -2,7 +2,7 @@ use std::sync::Once;
 
 use account_service::{errors::Error::Storage, Service, ServiceImpl};
 use color_eyre::eyre::WrapErr;
-use storage::{errors::Data::DuplicatedTransaction, Error::Data};
+use storage::{errors::Data::TransactionNotFoundForClient, Error::Data};
 use tokio::test;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
@@ -210,7 +210,7 @@ async fn duplicated_transaction() {
         ..get_test_transaction()
     };
     match service.add_transaction(transaction).await {
-        Err(Storage(Data(DuplicatedTransaction))) => {}
+        Err(Storage(Data(TransactionNotFoundForClient(_)))) => {}
         other => panic!(
             "this should be a duplicated transaction and not {:?}",
             other

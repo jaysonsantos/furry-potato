@@ -47,7 +47,11 @@ macro_rules! negative_test_cases {
     }
 }
 
-negative_test_cases!(multiple_resolve_dispute, invalid_transaction_type);
+negative_test_cases!(
+    multiple_resolve_dispute,
+    invalid_transaction_type,
+    resolve_different_account
+);
 
 async fn test_case_impl(input_filename: &str, output_filename: &str) -> Result<()> {
     let client = Cli::new().expect("should create client");

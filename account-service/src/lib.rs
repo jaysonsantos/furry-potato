@@ -88,7 +88,7 @@ impl ServiceImpl {
         new: &Transaction,
     ) -> result::Result<Transaction, Data> {
         if old.client != new.client {
-            return Err(Data::DuplicatedTransaction);
+            return Err(Data::TransactionNotFoundForClient(new.client));
         }
         if !Self::can_transition(old, new) {
             return Err(Data::InvalidTransition(
