@@ -3,7 +3,7 @@ mod transaction;
 
 #[macro_export]
 macro_rules! implement_storage {
-    ($type_name:ident, $primary_key:expr) => {
+    ($type_name:ident, $primary_key:expr, $partition_key:expr) => {
         use $crate::{FromStorage, ToFromStorage, ToStorage};
         impl ToStorage for $type_name {
             fn to_bytes(&self) -> Vec<u8> {
@@ -21,7 +21,7 @@ macro_rules! implement_storage {
         }
         impl ToFromStorage for $type_name {
             fn partition(&self) -> usize {
-                self.client as usize
+                $partition_key(self) as usize
             }
 
             fn primary_key(&self) -> String {

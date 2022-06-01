@@ -86,9 +86,12 @@ impl ServiceImpl {
     fn merge_transaction(
         old: &Transaction,
         new: &Transaction,
-    ) -> result::Result<Transaction, storage::errors::Data> {
+    ) -> result::Result<Transaction, Data> {
+        if old.client != new.client {
+            return Err(Data::DuplicatedTransaction);
+        }
         if !Self::can_transition(old, new) {
-            return Err(storage::errors::Data::InvalidTransition(
+            return Err(Data::InvalidTransition(
                 old.transaction_type.to_string(),
                 new.transaction_type.to_string(),
             ));
@@ -135,7 +138,7 @@ impl Debug for ServiceImpl {
 
 #[async_trait]
 impl Service for ServiceImpl {
-    #[instrument]
+    #[instrument(skip_all, err)]
     async fn add_transaction(&self, transaction: Transaction) -> Result<Transaction> {
         let client = self.storage.get(&ClientPosition {
             client: transaction.client,

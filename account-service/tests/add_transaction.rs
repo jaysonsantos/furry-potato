@@ -1,7 +1,8 @@
 use std::sync::Once;
 
-use account_service::{Service, ServiceImpl};
+use account_service::{errors::Error::Storage, Service, ServiceImpl};
 use color_eyre::eyre::WrapErr;
+use storage::{errors::Data::DuplicatedTransaction, Error::Data};
 use tokio::test;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
@@ -194,4 +195,25 @@ async fn client_position_lock_account() {
             i + 1
         );
     }
+}
+
+#[test]
+async fn duplicated_transaction() {
+    let service = get_test_service();
+    let transaction = get_test_transaction();
+    service
+        .add_transaction(transaction)
+        .await
+        .expect("failed to save transaction");
+    let transaction = Transaction {
+        client: 999,
+        ..get_test_transaction()
+    };
+    match service.add_transaction(transaction).await {
+        Err(Storage(Data(DuplicatedTransaction))) => {}
+        other => panic!(
+            "this should be a duplicated transaction and not {:?}",
+            other
+        ),
+    };
 }
