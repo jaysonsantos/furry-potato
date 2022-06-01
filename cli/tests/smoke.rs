@@ -4,7 +4,7 @@ use tokio::{process::Command, test};
 async fn smoke() {
     let mut cmd = Command::new("cargo")
         .arg("run")
-        .arg("../fixtures/input-001.csv")
+        .arg("../fixtures/big_decimals.csv")
         .spawn()
         .expect("failed to spawn cargo");
     let exit = cmd.wait().await.expect("failed to run cargo");

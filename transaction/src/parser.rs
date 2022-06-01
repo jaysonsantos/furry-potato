@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     async fn parse_transactions() {
-        let transactions = include_str!("../../fixtures/input-001.csv");
+        let transactions = include_str!("../../fixtures/big_decimals.csv");
         let cursor = Cursor::new(transactions.as_bytes());
         let transactions: Result<Vec<Transaction>> =
             Transaction::from_reader(cursor).await.collect().await;
