@@ -51,7 +51,8 @@ negative_test_cases!(
     multiple_resolve_dispute,
     invalid_transaction_type,
     resolve_different_account,
-    duplicate_transaction_id
+    duplicate_transaction_id,
+    negative_withdraw
 );
 
 async fn test_case_impl(input_filename: &str, output_filename: &str) -> Result<()> {

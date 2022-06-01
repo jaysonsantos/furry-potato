@@ -13,7 +13,10 @@ use transaction::{
     Transaction, TransactionType,
 };
 
-use crate::errors::{Error, Result};
+use crate::{
+    errors::{Error, Result},
+    Error::AmountCannotBeNegative,
+};
 
 pub mod errors;
 
@@ -53,6 +56,9 @@ impl ServiceImpl {
             .amount
             .expect("amount in this point should be filled");
         let amount = amount.round_dp(DECIMAL_PRECISION);
+        if amount.is_sign_negative() {
+            return Err(AmountCannotBeNegative);
+        }
         let mut client_position = ClientPosition {
             client: transaction.client,
             ..Default::default()

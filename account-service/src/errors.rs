@@ -8,6 +8,8 @@ pub enum Error {
     Storage(#[from] storage::Error),
     #[error("account locked")]
     AccountLocked,
+    #[error("amount cannot be negative")]
+    AmountCannotBeNegative,
     #[error("unknown")]
     Unknown,
 }
